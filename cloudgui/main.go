@@ -19,8 +19,9 @@ import (
 )
 
 type WatchTarget struct {
-	Path          string `json:"path"`
-	DriveFolderID string `json:"drive_folder_id"`
+    Path          string `json:"path"`
+    DriveFolderID string `json:"drive_folder_id"`
+    DriveFileName string `json:"drive_file_name"`
 }
 
 type Config struct {
@@ -64,15 +65,16 @@ func main() {
 	loadConfig()
 
 	w := wui.NewWindow()
-	w.SetTitle("Cloud Backup Control Panel v2.0")
+	w.SetTitle("Cloud GUI")
 	w.SetInnerSize(800, 460)
+	w.SetPosition(120,40)
 	w.SetHasMaxButton(false)
 	w.SetResizable(true)
 	w.SetBackground(wui.RGB(240, 240, 240))
 
 	// Title
 	titleLabel := wui.NewLabel()
-	titleLabel.SetText("Google Drive Cloud Backup Manager")
+	titleLabel.SetText("Cloud Backup Manager (Google Drive)")
 	titleLabel.SetBounds(20, 10, 350, 24)
 	titleLabel.SetFont(createBoldFont())
 	w.Add(titleLabel)
@@ -99,7 +101,7 @@ func main() {
 	lblTargets.SetFont(createBoldFont())
 	w.Add(lblTargets)
 
-	table := wui.NewStringTable("Local Path", "Google Drive Folder ID")
+	table := wui.NewStringTable("Local Path", "Drive Folder ID", "Drive File Name")
 	table.SetBounds(20, 108, 400, 150)
 	refreshTable(table)
 	w.Add(table)
@@ -299,7 +301,7 @@ func main() {
 	btnAutoStart.SetBounds(10, 30, 120, 24)
 	
 	btnDisableAuto := wui.NewButton()
-	btnDisableAuto.SetText("Disable Auto Start")
+	btnDisableAuto.SetText("Disable")
 	btnDisableAuto.SetBounds(140, 30, 120, 24)
 	
 	// Check current autostart status
@@ -626,11 +628,16 @@ func loadCredentialsFile() {
 }
 
 func refreshTable(table *wui.StringTable) {
-	table.Clear()
-	for row, t := range config.Targets {
-		table.SetCell(0, row, t.Path)
-		table.SetCell(1, row, t.DriveFolderID)
-	}
+    table.Clear()
+    for row, t := range config.Targets {
+        table.SetCell(0, row, t.Path)
+        table.SetCell(1, row, t.DriveFolderID)
+        displayName := t.DriveFileName
+        if displayName == "" {
+            displayName = "(use original name)"
+        }
+        table.SetCell(2, row, displayName)
+    }
 }
 
 func loadConfig() {
@@ -673,87 +680,124 @@ func copyFile(src, dst string) error {
 
 // showTargetModal creates a modal dialog to add or edit a watch target
 func showTargetModal(parent *wui.Window, table *wui.StringTable, editIndex int) {
-	dlg := wui.NewWindow()
-	title := "Add Target"
-	if editIndex >= 0 {
-		title = "Edit Target"
-	}
-	dlg.SetTitle(title)
-	dlg.SetInnerSize(450, 250)
-	dlg.SetResizable(false)
+    dlg := wui.NewWindow()
+    title := "Add Target"
+    if editIndex >= 0 {
+        title = "Edit Target"
+    }
+    dlg.SetTitle(title)
+    dlg.SetInnerSize(450, 300)
+	dlg.SetPosition(270, 120)
+    dlg.SetResizable(false)
 
-	// Path selection
-	lblPath := wui.NewLabel()
-	lblPath.SetText("Local Folder/File Path:")
-	lblPath.SetBounds(20, 20, 200, 20)
-	dlg.Add(lblPath)
+    // Path selection
+    lblPath := wui.NewLabel()
+    lblPath.SetText("Local Folder/File Path:")
+    lblPath.SetBounds(20, 20, 200, 20)
+    dlg.Add(lblPath)
 
-	pathEdit := wui.NewEditLine()
-	pathEdit.SetBounds(20, 40, 320, 25)
-	dlg.Add(pathEdit)
+    pathEdit := wui.NewEditLine()
+    pathEdit.SetBounds(20, 40, 320, 25)
+    dlg.Add(pathEdit)
 
-	btnBrowse := wui.NewButton()
-	btnBrowse.SetText("Browse")
-	btnBrowse.SetBounds(350, 40, 80, 25)
-	btnBrowse.SetOnClick(func() {
-		fd := wui.NewFolderSelectDialog()
-		fd.SetTitle("Select Folder to Watch")
-		if ok, path := fd.Execute(dlg); ok {
-			pathEdit.SetText(path)
-		}
-	})
-	dlg.Add(btnBrowse)
+    // Browse Folder button
+    btnBrowseFolder := wui.NewButton()
+    btnBrowseFolder.SetText("Folder")
+    btnBrowseFolder.SetBounds(350, 40, 80, 25)
+    btnBrowseFolder.SetOnClick(func() {
+        fd := wui.NewFolderSelectDialog()
+        fd.SetTitle("Select Folder to Watch")
+        if ok, path := fd.Execute(dlg); ok {
+            pathEdit.SetText(path)
+        }
+    })
+    dlg.Add(btnBrowseFolder)
 
-	// Drive Folder ID
-	lblDriveID := wui.NewLabel()
-	lblDriveID.SetText("Google Drive Folder ID:")
-	lblDriveID.SetBounds(20, 80, 200, 20)
-	dlg.Add(lblDriveID)
+    // Browse File button (below the folder browse button)
+    btnBrowseFile := wui.NewButton()
+    btnBrowseFile.SetText("File")
+    btnBrowseFile.SetBounds(350, 70, 80, 25)
+    btnBrowseFile.SetOnClick(func() {
+        fd := wui.NewFileOpenDialog()
+        fd.SetTitle("Select File to Watch")
+        fd.AddFilter("All Files", "*.*")
+        if ok, path := fd.ExecuteSingleSelection(dlg); ok {
+            pathEdit.SetText(path)
+        }
+    })
+    dlg.Add(btnBrowseFile)
 
-	idEdit := wui.NewEditLine()
-	idEdit.SetBounds(20, 100, 410, 25)
-	dlg.Add(idEdit)
+    // Drive Folder ID
+    lblDriveID := wui.NewLabel()
+    lblDriveID.SetText("Google Drive Folder ID:")
+    lblDriveID.SetBounds(20, 100, 200, 20)
+    dlg.Add(lblDriveID)
 
-	if editIndex >= 0 {
-		pathEdit.SetText(config.Targets[editIndex].Path)
-		idEdit.SetText(config.Targets[editIndex].DriveFolderID)
-	}
+    idEdit := wui.NewEditLine()
+    idEdit.SetBounds(20, 120, 410, 25)
+    dlg.Add(idEdit)
 
-	// Buttons
-	btnSave := wui.NewButton()
-	btnSave.SetText("Save")
-	btnSave.SetBounds(120, 150, 100, 30)
-	btnSave.SetOnClick(func() {
-		if pathEdit.Text() == "" || idEdit.Text() == "" {
-			wui.MessageBoxError("Error", "Both fields are required.")
-			return
-		}
-		newTarget := WatchTarget{
-			Path:          pathEdit.Text(),
-			DriveFolderID: idEdit.Text(),
-		}
-		if editIndex >= 0 {
-			config.Targets[editIndex] = newTarget
-		} else {
-			config.Targets = append(config.Targets, newTarget)
-		}
-		saveConfig()
-		refreshTable(table)
-		restartDaemonIfRunning()
-		dlg.Close()
-	})
-	dlg.Add(btnSave)
+    // Custom Drive File Name
+    lblFileName := wui.NewLabel()
+    lblFileName.SetText("Drive File Name (optional):")
+    lblFileName.SetBounds(20, 160, 200, 20)
+    dlg.Add(lblFileName)
 
-	btnCancel := wui.NewButton()
-	btnCancel.SetText("Cancel")
-	btnCancel.SetBounds(230, 150, 100, 30)
-	btnCancel.SetOnClick(func() {
-		dlg.Close()
-	})
-	dlg.Add(btnCancel)
+    fileNameEdit := wui.NewEditLine()
+    fileNameEdit.SetBounds(20, 180, 410, 25)
+    fileNameEdit.SetText("") // Empty means use default name
+    dlg.Add(fileNameEdit)
 
-	dlg.ShowModal()
+    lblHint := wui.NewLabel()
+    lblHint.SetText("Leave empty to use original name")
+    lblHint.SetBounds(20, 210, 300, 15)
+    smallFont, _ := wui.NewFont(wui.FontDesc{Height: 13})
+    lblHint.SetFont(smallFont)
+    dlg.Add(lblHint)
+
+    if editIndex >= 0 {
+        pathEdit.SetText(config.Targets[editIndex].Path)
+        idEdit.SetText(config.Targets[editIndex].DriveFolderID)
+        fileNameEdit.SetText(config.Targets[editIndex].DriveFileName)
+    }
+
+    // Buttons
+    btnSave := wui.NewButton()
+    btnSave.SetText("Save")
+    btnSave.SetBounds(120, 240, 100, 30)
+    btnSave.SetOnClick(func() {
+        if pathEdit.Text() == "" || idEdit.Text() == "" {
+            wui.MessageBoxError("Error", "Local Path and Drive Folder ID are required.")
+            return
+        }
+        newTarget := WatchTarget{
+            Path:          pathEdit.Text(),
+            DriveFolderID: idEdit.Text(),
+            DriveFileName: fileNameEdit.Text(),
+        }
+        if editIndex >= 0 {
+            config.Targets[editIndex] = newTarget
+        } else {
+            config.Targets = append(config.Targets, newTarget)
+        }
+        saveConfig()
+        refreshTable(table)
+        restartDaemonIfRunning()
+        dlg.Close()
+    })
+    dlg.Add(btnSave)
+
+    btnCancel := wui.NewButton()
+    btnCancel.SetText("Cancel")
+    btnCancel.SetBounds(230, 240, 100, 30)
+    btnCancel.SetOnClick(func() {
+        dlg.Close()
+    })
+    dlg.Add(btnCancel)
+
+    dlg.ShowModal()
 }
+
 
 // Autostart functions for Windows
 func getStartupFolderPath() string {

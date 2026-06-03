@@ -68,19 +68,6 @@ Run `cloudgui.exe` and:
 
 Click **Start** to begin monitoring and backing up your files.
 
-## Project Structure
-
-```
-Cloud/
-├── cloud.exe          # Background daemon (watches files, uploads to Drive)
-├── cloudgui.exe       # GUI control panel
-├── credentials.json   # Your Google API credentials
-├── config.json        # Watch targets and settings
-├── token.json         # OAuth token (auto-generated)
-├── cloud_daemon.log   # Daemon logs
-└── icon.png           # Application icon
-```
-
 ## Configuration
 
 ### config.json Example
